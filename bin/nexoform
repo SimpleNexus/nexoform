@@ -17,28 +17,20 @@ def default_plan_filename
   'nexoform.tfplan'
 end
 
+# Temporary fix for https://github.com/erikhuda/thor/issues/398
+class Thor
+  module Shell
+    class Basic
+      def print_wrapped(message, options = {})
+        stdout.puts message
+      end
+    end
+  end
+end
+
 class NexoformBin < Thor
   class_option :environment, type: :string, aliases: 'e', required: false
   class_option :assume_yes, type: :boolean, aliases: 'y', default: false
-
-  desc 'apply', 'Apply changes (Runs a terraform apply)'
-  long_desc <<-LONGDESC
-    Applies any applicable changes.  Under the hood, this
-    command runs a terraform apply.
-
-    If you pass --plan, the specified file will be used for the plan
-    If you pass --noplan, no plan file will be used
-    If you don't pass either, no plan file will be used unless the default
-    is present.  If it is, you'll be prompted about using it
-
-    > $ nexoform apply --environment 'dev' [--plan=#{default_plan_filename}]
-  LONGDESC
-  option :plan, type: :string, aliases: 'p', required: false
-  option :noplan, type: :boolean, aliases: 'n', default: false
-  option :overwrite, type: :boolean, required: false
-  def apply
-    exec_apply(options)
-  end
 
   desc 'plan', 'Print out changes that will be made on next apply (runs a terraform plan)'
   long_desc <<-LONGDESC
@@ -51,20 +43,45 @@ class NexoformBin < Thor
     If you pass '--nosave' or '-n' the plan will not be saved
     If you pass none of those, you'll be prompted about saving the plan
 
-    > $ nexoform plan --environment 'dev' [--save] [--out='#{default_plan_filename}']
+    > $ nexoform plan
+    > $ nexoform plan --environment 'dev'
+    > $ nexoform plan --environment 'dev' --save --overwrite
+    > $ nexoform plan --environment 'dev' --out='#{default_plan_filename}'
   LONGDESC
   option :out, type: :string, aliases: 'o', required: false
   option :save, type: :boolean, aliases: 's', required: false
   option :nosave, type: :boolean, aliases: 'n', required: false
-  option :overwrite, type: :boolean, required: false
+  option :overwrite, type: :boolean, aliases: 'w', required: false
   def plan
     exec_plan(options)
+  end
+
+  desc 'apply', 'Apply changes (Runs a terraform apply)'
+  long_desc <<-LONGDESC
+    Applies any applicable changes.  Under the hood, this command runs a
+    terraform apply.
+
+    If you pass --plan, the specified file will be used for the plan
+    If you pass --noplan, no plan file will be used
+    If you don't pass either, no plan file will be used unless the default
+    is present.  If it is, you'll be prompted about using it
+
+    > $ nexoform apply
+    > $ nexoform apply --environment 'dev'
+    > $ nexoform apply --environment 'dev' --noplan
+    > $ nexoform apply --environment 'dev' --plan=#{default_plan_filename}
+  LONGDESC
+  option :plan, type: :string, aliases: 'p', required: false
+  option :noplan, type: :boolean, aliases: 'n', default: false
+  def apply
+    exec_apply(options)
   end
 
   desc 'destroy', 'Destroy all provisioned resources (runs a terraform destroy)'
   long_desc <<-LONGDESC
     Destroys any resources that have been provisioned
 
+    > $ nexoform destroy
     > $ nexoform destroy --environment 'dev'
   LONGDESC
   def destroy
@@ -96,7 +113,7 @@ class NexoformBin < Thor
   LONGDESC
   option :force, type: :boolean, aliases: 'f', default: false
   option :upgrade, type: :boolean, aliases: 'u', default: false
-  option :'project-name', type: :string, aliases: 'c', required: false
+  option :'project-name', type: :string, aliases: 'p', required: false
   def config_file
     exec_config_file(options)
   end

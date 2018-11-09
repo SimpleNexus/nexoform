@@ -63,7 +63,31 @@ to get it in the desired state.  If enabled, this will be saved to a file that c
 used with `apply` to make sure exactly those changes are made.
 
 ```bash
-nexoform plan
+Usage:
+  nexoform plan
+
+Options:
+  o, [--out=OUT]
+  s, [--save], [--no-save]
+  n, [--nosave], [--no-nosave]
+  w, [--overwrite], [--no-overwrite]
+  e, [--environment=ENVIRONMENT]
+  y, [--assume-yes], [--no-assume-yes]
+
+Description:
+    Prints out any changes that will be made the next time
+    a nexoform apply is run.  Under the hood, this command
+    runs a terraform plan.
+
+    If you pass an arg to 'out' the plan will be saved to that filename.
+    If you pass '--save' or '-s' the plan will be saved to 'nexoform.tfplan'
+    If you pass '--nosave' or '-n' the plan will not be saved
+    If you pass none of those, you'll be prompted about saving the plan
+
+    > $ nexoform plan
+    > $ nexoform plan --environment 'dev'
+    > $ nexoform plan --environment 'dev' --save --overwrite
+    > $ nexoform plan --environment 'dev' --out='nexoform.tfplan'
 ```
 
 #### Apply
@@ -71,9 +95,49 @@ nexoform plan
 This will implement the plan from the previous step, or if run without a plan file
 apply will first calculate a plan and present it to you for approval.
 
+```bash
+Usage:
+  nexoform apply
+
+Options:
+  p, [--plan=PLAN]
+  n, [--noplan], [--no-noplan]
+  e, [--environment=ENVIRONMENT]
+  y, [--assume-yes], [--no-assume-yes]
+
+Description:
+    Applies any applicable changes.  Under the hood, this command runs a
+    terraform apply.
+
+    If you pass --plan, the specified file will be used for the plan
+    If you pass --noplan, no plan file will be used
+    If you don't pass either, no plan file will be used unless the default
+    is present.  If it is, you'll be prompted about using it
+
+    > $ nexoform apply
+    > $ nexoform apply --environment 'dev'
+    > $ nexoform apply --environment 'dev' --noplan
+    > $ nexoform apply --environment 'dev' --plan=nexoform.tfplan
+```
+
 #### Destroy
 
 This will delete/remove any resources created during an `apply`
+
+```bash
+Usage:
+  nexoform destroy
+
+Options:
+  e, [--environment=ENVIRONMENT]
+  y, [--assume-yes], [--no-assume-yes]
+
+Description:
+    Destroys any resources that have been provisioned
+
+    > $ nexoform destroy
+    > $ nexoform destroy --environment 'dev'
+```
 
 #### config-file
 
@@ -85,10 +149,56 @@ This will generate a starting config file for you with three environments:
 
 You can of course add more or delete some to fit your needs.
 
+```bash
+Usage:
+  nexoform config-file
+
+Options:
+  f, [--force]
+  p, [--project-name=PROJECT-NAME]
+
+Description:
+    Writes a nexoform config file to ./nexoform.yml
+    containing the default settings.  This can then be configured
+    as preferred.
+
+    > $ nexoform config-file [--force] [--project-name 'simplenexus']
+```
+
 #### list-envs
 
 This will print out a list of environment available.
 
+```bash
+Usage:
+  nexoform list-envs
+
+Options:
+  e, [--environment=ENVIRONMENT]
+  y, [--assume-yes], [--no-assume-yes]
+
+Description:
+    Lists the available environments and the current default (if applicable).
+    These are defined in the config file at ./nexoform.yml
+
+    > $ nexoform list-envs
+```
+
 #### Output
 
 This will perform the setup and run `terraform output` for you.
+
+```bash
+Usage:
+  nexoform output
+
+Options:
+  e, [--environment=ENVIRONMENT]
+  y, [--assume-yes], [--no-assume-yes]
+
+Description:
+    Prints any output from last terraform state.  Runs a 'terraform output'
+
+    > $ nexoform output
+```
+
