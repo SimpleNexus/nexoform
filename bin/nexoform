@@ -1,0 +1,473 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'rainbow/refinement'
+using Rainbow
+
+require 'thor'
+require 'yaml'
+require 'json'
+require 'shellwords'
+
+require 'nexoform'
+
+# For some reason this method definition can't be inside the NexoformBin class
+# because Thor won't find it when generating description documention
+def default_plan_filename
+  'nexoform.tfplan'
+end
+
+class NexoformBin < Thor
+  class_option :environment, type: :string, aliases: 'e', required: false
+  class_option :assume_yes, type: :boolean, aliases: 'y', default: false
+
+  desc 'apply', 'Apply changes (Runs a terraform apply)'
+  long_desc <<-LONGDESC
+    Applies any applicable changes.  Under the hood, this
+    command runs a terraform apply.
+
+    If you pass --plan, the specified file will be used for the plan
+    If you pass --noplan, no plan file will be used
+    If you don't pass either, no plan file will be used unless the default
+    is present.  If it is, you'll be prompted about using it
+
+    > $ nexoform apply --environment 'dev' [--plan=#{default_plan_filename}]
+  LONGDESC
+  option :plan, type: :string, aliases: 'p', required: false
+  option :noplan, type: :boolean, aliases: 'n', default: false
+  option :overwrite, type: :boolean, required: false
+  def apply
+    exec_apply(options)
+  end
+
+  desc 'plan', 'Print out changes that will be made on next apply (runs a terraform plan)'
+  long_desc <<-LONGDESC
+    Prints out any changes that will be made the next time
+    a nexoform apply is run.  Under the hood, this command
+    runs a terraform plan.
+
+    If you pass an arg to 'out' the plan will be saved to that filename.
+    If you pass '--save' or '-s' the plan will be saved to '#{default_plan_filename}'
+    If you pass '--nosave' or '-n' the plan will not be saved
+    If you pass none of those, you'll be prompted about saving the plan
+
+    > $ nexoform plan --environment 'dev' [--save] [--out='#{default_plan_filename}']
+  LONGDESC
+  option :out, type: :string, aliases: 'o', required: false
+  option :save, type: :boolean, aliases: 's', required: false
+  option :nosave, type: :boolean, aliases: 'n', required: false
+  option :overwrite, type: :boolean, required: false
+  def plan
+    exec_plan(options)
+  end
+
+  desc 'destroy', 'Destroy all provisioned resources (runs a terraform destroy)'
+  long_desc <<-LONGDESC
+    Destroys any resources that have been provisioned
+
+    > $ nexoform destroy --environment 'dev'
+  LONGDESC
+  def destroy
+    exec_destroy(options)
+  end
+
+  desc 'output', 'Print any output from terraform'
+  long_desc <<-LONGDESC
+    Prints any output from last terraform state.  Runs a 'terraform output'
+
+    > $ nexoform output
+  LONGDESC
+  def output
+    execute('terraform output')
+  end
+
+  desc 'version', 'Check current installed version of nexoform'
+  def version
+    puts "Nexoform - Version: #{Nexoform.version}"
+  end
+
+  desc 'config-file', 'Write a default config file'
+  long_desc <<-LONGDESC
+    Writes a nexoform config file to #{Nexoform::Config.filename}
+    containing the default settings.  This can then be configured
+    as preferred.
+
+    > $ nexoform config-file [--upgrade] [--force] [--project-name 'simplenexus']
+  LONGDESC
+  option :force, type: :boolean, aliases: 'f', default: false
+  option :upgrade, type: :boolean, aliases: 'u', default: false
+  option :'project-name', type: :string, aliases: 'c', required: false
+  def config_file
+    exec_config_file(options)
+  end
+
+  desc 'list-envs', 'List the environments'
+  long_desc <<-LONGDESC
+    Lists the available environments and the current default (if applicable).
+    These are defined in the config file at #{Nexoform::Config.filename}
+
+    > $ nexoform list-envs
+  LONGDESC
+  def list_envs
+    exec_list_envs(options)
+  end
+
+  private
+
+  def print_next_color(str)
+    print Rainbow(str).color(next_color)
+  end
+
+  def puts_next_color(str)
+    puts Rainbow(str).color(next_color)
+  end
+
+  def config_file_present?
+    unless File.exist?(Nexoform::Config.filename)
+      print 'Could not find nexoform config file. Please create one at '.red
+      puts Nexoform::Config.filename.yellow
+      print_next_color 'You can generate a starter config file with: '
+      puts_next_color '`nexoform config-file`'
+      exit 2
+    end
+  end
+
+  def terraform_installed?
+    unless Nexoform::Bash.run_command('which terraform').success?
+      puts 'Terraform does not look to be installed, or is not in PATH.'.red
+      print 'To get started, check out: '.yellow
+      puts_next_color 'https://www.terraform.io/intro/getting-started/install.html'
+      exit 3
+    end
+  end
+
+  def terraform_files_present?
+    if Dir.glob('*.tf').empty?
+      puts "There aren't any terraform files here!".red
+      print 'To get started, check out: '.yellow
+      puts_next_color 'https://www.terraform.io/intro/getting-started/build.html'
+      exit 4
+    end
+  end
+
+  def plan_file_recent?(options)
+    # TODO: - check to see that the plan file, if it exists, was modified within the last 12 hours
+    # if it was not, warn/exit or something else more appropriate
+  end
+
+  def sanity_check(options)
+    config_file_present?
+    terraform_installed?
+    terraform_files_present?
+    plan_file_recent?(options)
+  end
+
+  def escape(str)
+    Shellwords.escape(str)
+  end
+
+  def env(options)
+    if options['environment']
+      options['environment']
+    elsif Nexoform::Config.default_env
+      Nexoform::Config.default_env
+    else
+      puts 'No environment was specified, and there is no default set.'.red
+      puts 'Please try again with a --environment specified'.yellow
+      exit 1
+    end
+  end
+
+  def execute(command)
+    puts
+    puts '-----------------------------------------------'.green
+    puts '| Executing command: '.green
+    puts '|'.green
+    puts '| '.green + command.blue
+    puts '-----------------------------------------------'.green
+    puts
+    retval = Nexoform::Bash.run_command_loud(command)
+    unless retval.success?
+      puts '* The previous command exited with failure.  Please check the output and try again:'.red
+      print '    Command:  '.red
+      puts command.yellow
+      exit retval.exitstatus.to_i
+    end
+  end
+
+  def terraform_init(options)
+    args = %W[
+      -backend=true
+      -force-copy
+      -get=true
+      -get-plugins=true
+      -reconfigure
+      -upgrade=true
+      -backend-config="bucket=#{escape(Nexoform::Config.bucket(env(options)))}"
+      -backend-config="key=#{escape(Nexoform::Config.key(env(options)))}"
+      -backend-config="region=#{escape(Nexoform::Config.region(env(options)))}"
+    ]
+    "terraform init #{args.join(' ')}"
+  end
+
+  def run_init(options)
+    print_next_color '* Initializing terraform for environment: '
+    execute(terraform_init(options))
+  end
+
+  def var_file_arg(options)
+    "-var-file #{escape(Nexoform::Config.var_file(env(options)))}"
+  end
+
+  def terraform_refresh(options)
+    "terraform refresh #{var_file_arg(options)}"
+  end
+
+  def run_refresh(options)
+    print_next_color 'Refreshing terraform state against actual state of ' \
+                     'resources for environment: '
+    print_next_color env(options)
+    execute(terraform_refresh(options))
+  end
+
+  def needs_prompt_for_plan_file?(options)
+    (options[:plan].nil? || options[:plan].empty?) && !options[:noplan]
+  end
+
+  def plan_file_in_dir?
+    !Dir.glob('*.tfplan').empty?
+  end
+
+  def prompt_for_plan_file(options)
+    return options if options[:noplan]
+
+    if Nexoform::Config.plan_disabled?(env(options))
+      puts_next_color '* Plan file is disabled in config file. Not using a plan file'
+      return options.merge(noplan: true)
+    end
+
+    if needs_prompt_for_plan_file?(options) && plan_file_in_dir?
+      # use config file if it has the info
+      if Nexoform::Config.has_plan_file?(env(options))
+        plan_file = Nexoform::Config.plan_file(env(options))
+        puts_next_color "* Using #{plan_file} for plan file as specified in " \
+          "config file #{Nexoform::Config.filename} for env #{env(options)}."
+        return options.merge(plan: plan_file)
+      else
+        plan_name = Dir.glob('*.tfplan').first
+        print "You didn't specify a --plan <filename>, but there is a plan " \
+          "file present.  Would you like to use the plan '#{plan_name}'? " \
+          "(pass --plan or --noplan if you don't want to see this prompt) (Y/N)?: ".yellow
+        resp = STDIN.gets.chomp
+        if resp =~ /y/i
+          puts_next_color "* Using plan file: #{plan_name}"
+          return options.merge(plan: plan_name)
+        else
+          puts '* Not using a plan file'.yellow
+        end
+      end
+    end
+    options
+  end
+
+  def exit_if_plan_file_should_but_does_not_exist(options)
+    if options[:plan] && !File.exist?(options[:plan])
+      puts "* Was told to use plan file '#{options[:plan]}' but it does not exist!".red
+      puts '* Please run `nexoform plan` and try again, or Re-run with --noplan'.red
+      exit 6
+    end
+  end
+
+  def apply_with_plan_file?(options)
+    return false if options[:noplan]
+
+    options[:plan]
+  end
+
+  def terraform_apply(options)
+    varfile = apply_with_plan_file?(options) ? '' : var_file_arg(options)
+    planfile = apply_with_plan_file?(options) ? options[:plan] : ''
+    "terraform apply #{varfile} #{planfile}"
+  end
+
+  def exec_apply(options)
+    sanity_check(options)
+    options = prompt_for_plan_file(options)
+    exit_if_plan_file_should_but_does_not_exist(options)
+    unless options[:plan]
+      run_init(options)
+      run_refresh(options)
+    end
+    print_next_color 'Applying any infrastructure changes ' \
+                     'for environment: '
+    puts_next_color env(options)
+    execute(terraform_apply(options))
+  end
+
+  def prompt_for_save_file(options)
+    return options if options[:nosave]
+
+    if Nexoform::Config.has_plan_file?(env(options))
+      plan_file = Nexoform::Config.plan_file(env(options))
+      puts_next_color "* Found plan file in #{Nexoform::Config.filename} for env #{env(options)}.  Using #{plan_file} for plan file"
+      opts = options.merge(out: plan_file)
+
+      if Nexoform::Config.has_plan_file_overwrite?(env(options))
+        pf_overwrite = Nexoform::Config.plan_file_overwrite(env(options))
+        puts_next_color "* Found overwrite setting for plan file '#{plan_file}' in config file '#{Nexoform::Config.filename}'. Setting to '#{pf_overwrite}'"
+        opts = opts.merge(overwrite: pf_overwrite)
+      else
+        puts "* Didn't see an overwrite setting for plan file '#{plan_file}' in the config file '#{Nexoform::Config.filename}' for env '#{env(options)}'. Skipping".yellow
+      end
+
+      return opts
+    elsif Nexoform::Config.plan_disabled?(env(options))
+      puts_next_color '* Plan file is disabled in config file. Not using a plan file'
+      return options.merge(nosave: true)
+    else
+      if !options[:out] && options[:save]
+        return options.merge(out: default_plan_filename)
+      elsif !options[:out]
+        puts "You didn't specify a --out <filename>.  Would you like to save the plan? (pass --nosave if you don't want to see this prompt)\n".yellow
+        puts "1.  'Y' for default filename (#{default_plan_filename}), ".cyan
+        puts "2.  'N' for no saving, ".red
+        puts '3.  Type in a filename'.blue
+        print "\nYour choice: ".yellow
+        resp = STDIN.gets.chomp
+        if resp =~ /^y$/ || resp =~ /^1$/
+          puts_next_color "* Using default filename: #{default_plan_filename}"
+          return options.merge(out: default_plan_filename)
+        elsif resp =~ /^n$/i || resp =~ /^2$/i || resp.empty?
+          puts '* Not saving plan'.yellow
+          return options
+        else
+          puts_next_color "* Using filename: #{resp}"
+          return options.merge(out: resp)
+        end
+      end
+    end
+
+    options
+  end
+
+  def prompt_if_plan_file_exists(options)
+    if options[:out] && File.exist?(options[:out])
+      if options[:overwrite].nil? || options[:overwrite] == 'ask'
+        print "The specified plan file '#{options[:out]}' already exists.  Over write? (Y/N): ".yellow
+        resp = STDIN.gets.chomp
+        if resp =~ /n/i
+          puts '* User declined writing over plan file.  Exiting.'.red
+          exit 5
+        end
+      elsif options[:overwrite] == false
+        puts "* Overwrite is set to false but the plan file '#{options[:out]}' exists.  " \
+             'Exitting.  Please change the setting or delete/move the plan file before ' \
+             'trying again.'.red
+        exit 5
+      elsif options[:overwrite].is_a?(String) && options[:overwrite] != 'ask'
+        puts "* Plan File Overwrite for env '#{env(options)}' is set to '#{options[:overwrite]}' which is not a valid value.  Must be either 'yes', 'no', or 'ask'".red
+        exit 5
+      end
+    end
+  end
+
+  def plan_with_plan_file?(options)
+    return false if options[:noplan]
+
+    options[:plan]
+  end
+
+  def terraform_plan(options)
+    out = options[:out] ? "-out=#{options[:out]}" : ''
+    "terraform plan #{var_file_arg(options)} #{out}"
+  end
+
+  def exec_plan(options)
+    sanity_check(options)
+    options = prompt_for_save_file(options)
+    prompt_if_plan_file_exists(options)
+    run_init(options)
+    run_refresh(options)
+    print_next_color '* Running terraform plan for environment: '
+    puts_next_color env(options)
+    execute(terraform_plan(options))
+  end
+
+  def terraform_destroy(options)
+    "terraform destroy #{var_file_arg(options)}"
+  end
+
+  def exec_destroy(options)
+    sanity_check(options)
+    run_init(options)
+    run_refresh(options)
+    print_next_color '* Destroying any infrastructure resources ' \
+                     'for environment: '
+    puts_next_color env(options)
+    execute(terraform_destroy(options))
+  end
+
+  def config_file_action(options)
+    if options[:upgrade]
+      'u'
+    elsif options[:force]
+      'o'
+    else
+      # Upgrade isn't implemented yet.  Uncomment when it is
+      # print "A config file already exists at #{Nexoform::Config.filename}.  [U]pgrade, [O]verwrite with default settings, or do [N]othing? (U/O/N): ".yellow
+      print "A config file already exists at #{Nexoform::Config.filename}.  [O]verwrite with default settings, or do [N]othing? (O/N): ".yellow
+      STDIN.gets.chomp
+    end
+  end
+
+  def take_action(action, project_name)
+    if action =~ /u/i
+      puts "* Upgrading config file at #{Nexoform::Config.filename}".green
+      Nexoform::Config.upgrade_settings_file
+    elsif action =~ /o/i
+      puts "* Overwriting config file with new version at #{Nexoform::Config.filename}".yellow
+      Nexoform::Config.write_default_settings_file(project_name)
+    else
+      puts '* User declined.  Not writing config file'.red
+      nil
+    end
+  end
+
+  def exec_config_file(options)
+    sanity_check(options)
+    if File.exist?(Nexoform::Config.filename)
+      take_action(config_file_action(options), options[:'project-name'])
+    else
+      puts "* Writing new config file to #{Nexoform::Config.filename}".green
+      Nexoform::Config.write_default_settings_file(options[:'project-name'])
+    end
+  end
+
+  def next_color
+    # colors = %i[cyan indianred magenta aqua]
+    colors = %i[cyan indianred magenta]
+    @last_num ||= -1
+    @last_num = (@last_num + 1) % colors.length
+    colors[@last_num]
+  end
+
+  def exec_list_envs(options)
+    sanity_check(options)
+    puts_next_color "\nValid environments (defined in your config file): \n"
+    Nexoform::Config.envs.each do |env|
+      puts Rainbow("  - #{env}").color(next_color)
+    end
+    puts
+  end
+end
+
+if !ARGV.empty? && %w[-v --version].include?(ARGV.first)
+  puts "Nexoform - Version: #{Nexoform.version}"
+else
+  begin
+    NexoformBin.start(ARGV)
+  rescue StandardError => e
+    puts "* Encountered an error.  Make sure your config-file isn't messed up".red
+    puts "\n* Exception message: #{e.message}".yellow
+  end
+end
