@@ -451,7 +451,6 @@ class NexoformBin < Thor
   end
 
   def exec_config_file(options)
-    sanity_check(options)
     if File.exist?(Nexoform::Config.filename)
       take_action(config_file_action(options), options[:'project-name'])
     else
