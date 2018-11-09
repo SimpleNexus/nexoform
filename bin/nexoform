@@ -31,6 +31,7 @@ end
 class NexoformBin < Thor
   class_option :environment, type: :string, aliases: 'e', required: false
   class_option :assume_yes, type: :boolean, aliases: 'y', default: false
+  class_option :refresh, type: :boolean, aliases: 'r', default: true
 
   desc 'plan', 'Print out changes that will be made on next apply (runs a terraform plan)'
   long_desc <<-LONGDESC
@@ -241,10 +242,14 @@ class NexoformBin < Thor
   end
 
   def run_refresh(options)
-    print_next_color 'Refreshing terraform state against actual state of ' \
-                     'resources for environment: '
-    print_next_color env(options)
-    execute(terraform_refresh(options))
+    if options[:refresh]
+      print_next_color '* Refreshing terraform state against actual state of ' \
+                       'resources for environment: '
+      print_next_color env(options)
+      execute(terraform_refresh(options))
+    else
+      puts_next_color '* Skipping refresh at user option'
+    end
   end
 
   def needs_prompt_for_plan_file?(options)
