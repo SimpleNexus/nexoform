@@ -1,6 +1,8 @@
 # Nexoform
 
 Nexoform wraps terraform to provide easy support for multiple environments and remote backends.
+Nexoform also makes it trivial to use [ERB](https://www.stuartellis.name/articles/erb/)
+inside your terraform files.
 
 ## Quick Start
 
@@ -36,16 +38,19 @@ The name of the key will be the name of the environment
 Commands:
   nexoform apply           # Apply changes (Runs a terraform apply)
   nexoform config-file     # Write a default config file
-  nexoform destroy         # Destroy all provisioned resources (runs a terrafor...
+  nexoform destroy         # Destroy all provisioned resources (runs a terraform destroy)
+  nexoform generate        # Generate the raw terraform files for the environment but don't run terraform on them
   nexoform help [COMMAND]  # Describe available commands or one specific command
   nexoform list-envs       # List the environments
   nexoform output          # Print any output from terraform
-  nexoform plan            # Print out changes that will be made on next apply ...
+  nexoform plan            # Print out changes that will be made on next apply (runs a terraform plan)
   nexoform version         # Check current installed version of nexoform
 
 Options:
   e, [--environment=ENVIRONMENT]
   y, [--assume-yes], [--no-assume-yes]
+  r, [--refresh], [--no-refresh]
+                                        # Default: true
 ```
 
 `-e|--environment` allows you to specify the environment directly.  If you don't
@@ -54,13 +59,15 @@ file.  The special "environment" named `default` is just a string that points
 to the environment that will be used if you do not specify one on the command
 line.  If you do specify, it will override the default value for that command only.
 
-The three main commands you will use are plan, apply, and destroy.
+The three main commands you will use are `plan`, `apply`, and `destroy`
+(and maybe `generate` for debugging).
 
 #### Plan
 
 This will figure out what changes terraform will need to make to your infrastructure
 to get it in the desired state.  If enabled, this will be saved to a file that can be
-used with `apply` to make sure exactly those changes are made.
+used with `apply` to make sure exactly those changes are made.  If you are using ERB,
+the terraform files will be generated (run through ERB) before calculating the plan.
 
 ```bash
 Usage:
@@ -73,11 +80,14 @@ Options:
   w, [--overwrite], [--no-overwrite]
   e, [--environment=ENVIRONMENT]
   y, [--assume-yes], [--no-assume-yes]
+  r, [--refresh], [--no-refresh]
+                                        # Default: true
 
 Description:
     Prints out any changes that will be made the next time
     a nexoform apply is run.  Under the hood, this command
-    runs a terraform plan.
+    runs a terraform plan.  If you have ERB files, they will be
+    run through ERB to generate the output before running plan.
 
     If you pass an arg to 'out' the plan will be saved to that filename.
     If you pass '--save' or '-s' the plan will be saved to 'nexoform.tfplan'
@@ -93,21 +103,25 @@ Description:
 #### Apply
 
 This will implement the plan from the previous step, or if run without a plan file
-apply will first calculate a plan and present it to you for approval.
+apply will first calculate a plan and present it to you for approval.  If you are using ERB,
+the terraform files will be generated (run through ERB) before running apply.
 
 ```bash
 Usage:
   nexoform apply
 
 Options:
-  p, [--plan=PLAN]
-  n, [--noplan], [--no-noplan]
-  e, [--environment=ENVIRONMENT]
-  y, [--assume-yes], [--no-assume-yes]
+  p, [--plan=PLAN]                      
+  n, [--noplan], [--no-noplan]          
+  e, [--environment=ENVIRONMENT]        
+  y, [--assume-yes], [--no-assume-yes]  
+  r, [--refresh], [--no-refresh]        
+                                        # Default: true
 
 Description:
     Applies any applicable changes.  Under the hood, this command runs a
-    terraform apply.
+    terraform apply.  If you have ERB files, they will be
+    run through ERB to generate the output before running plan.
 
     If you pass --plan, the specified file will be used for the plan
     If you pass --noplan, no plan file will be used
@@ -122,7 +136,9 @@ Description:
 
 #### Destroy
 
-This will delete/remove any resources created during an `apply`
+This will delete/remove any resources created during an `apply`.  If you are using ERB,
+the terraform files will be generated (run through ERB) before running destroy.
+
 
 ```bash
 Usage:
@@ -131,9 +147,12 @@ Usage:
 Options:
   e, [--environment=ENVIRONMENT]
   y, [--assume-yes], [--no-assume-yes]
+  r, [--refresh], [--no-refresh]
+                                        # Default: true
 
 Description:
-    Destroys any resources that have been provisioned
+    Destroys any resources that have been provisioned.  If you have ERB files,
+    they will be run through ERB to generate the output before running destroy.
 
     > $ nexoform destroy
     > $ nexoform destroy --environment 'dev'
@@ -186,7 +205,8 @@ Description:
 
 #### Output
 
-This will perform the setup and run `terraform output` for you.
+This will perform the setup and run `terraform output` for you.  If you are using ERB,
+the terraform files will be generated (run through ERB) before calculating the plan.
 
 ```bash
 Usage:

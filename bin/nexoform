@@ -8,6 +8,8 @@ require 'thor'
 require 'yaml'
 require 'json'
 require 'shellwords'
+require 'erb'
+require 'fileutils'
 
 require 'nexoform'
 
@@ -37,7 +39,8 @@ class NexoformBin < Thor
   long_desc <<-LONGDESC
     Prints out any changes that will be made the next time
     a nexoform apply is run.  Under the hood, this command
-    runs a terraform plan.
+    runs a terraform plan.  If you have ERB files, they will be
+    run through ERB to generate the output before running plan.
 
     If you pass an arg to 'out' the plan will be saved to that filename.
     If you pass '--save' or '-s' the plan will be saved to '#{default_plan_filename}'
@@ -60,7 +63,8 @@ class NexoformBin < Thor
   desc 'apply', 'Apply changes (Runs a terraform apply)'
   long_desc <<-LONGDESC
     Applies any applicable changes.  Under the hood, this command runs a
-    terraform apply.
+    terraform apply.  If you have ERB files, they will be
+    run through ERB to generate the output before running plan.
 
     If you pass --plan, the specified file will be used for the plan
     If you pass --noplan, no plan file will be used
@@ -80,7 +84,8 @@ class NexoformBin < Thor
 
   desc 'destroy', 'Destroy all provisioned resources (runs a terraform destroy)'
   long_desc <<-LONGDESC
-    Destroys any resources that have been provisioned
+    Destroys any resources that have been provisioned.  If you have ERB files,
+    they will be run through ERB to generate the output before running destroy.
 
     > $ nexoform destroy
     > $ nexoform destroy --environment 'dev'
@@ -92,11 +97,13 @@ class NexoformBin < Thor
   desc 'output', 'Print any output from terraform'
   long_desc <<-LONGDESC
     Prints any output from last terraform state.  Runs a 'terraform output'
+    If you have ERB files, they will be run through ERB to generate the output
+    before running plan.
 
     > $ nexoform output
   LONGDESC
   def output
-    execute('terraform output')
+    exec_output(options)
   end
 
   desc 'version', 'Check current installed version of nexoform'
@@ -128,6 +135,17 @@ class NexoformBin < Thor
   LONGDESC
   def list_envs
     exec_list_envs(options)
+  end
+
+  desc 'generate', 'Generate the raw terraform files for the environment but don\'t run terraform on them'
+  long_desc <<-LONGDESC
+    Generates the raw terraform files for the specified (or default) environment
+    but does not actually run terraform on them.  This is useful for debugging/inspecting
+
+    > $ nexoform generate -e [environment]
+  LONGDESC
+  def generate
+    exec_generate(options)
   end
 
   private
@@ -177,6 +195,7 @@ class NexoformBin < Thor
     config_file_present?
     terraform_installed?
     terraform_files_present?
+    # TODO: once plan_file_recent? is implemented, skip it for `nexoform generate`
     plan_file_recent?(options)
   end
 
@@ -312,8 +331,15 @@ class NexoformBin < Thor
     "terraform apply #{varfile} #{planfile}"
   end
 
+  def exec_output(options)
+    sanity_check(options)
+    generate_files(options, chdir: true) if has_erb_files?
+    execute('terraform output')
+  end
+
   def exec_apply(options)
     sanity_check(options)
+    generate_files(options, chdir: true) if has_erb_files? && !options[:plan]
     options = prompt_for_plan_file(options)
     exit_if_plan_file_should_but_does_not_exist(options)
     unless options[:plan]
@@ -406,6 +432,7 @@ class NexoformBin < Thor
 
   def exec_plan(options)
     sanity_check(options)
+    generate_files(options, chdir: true) if has_erb_files?
     options = prompt_for_save_file(options)
     prompt_if_plan_file_exists(options)
     run_init(options)
@@ -421,6 +448,7 @@ class NexoformBin < Thor
 
   def exec_destroy(options)
     sanity_check(options)
+    generate_files(options, chdir: true) if has_erb_files?
     run_init(options)
     run_refresh(options)
     print_next_color '* Destroying any infrastructure resources ' \
@@ -479,6 +507,64 @@ class NexoformBin < Thor
       puts Rainbow("  - #{env}").color(next_color)
     end
     puts
+  end
+
+  def exec_generate(options)
+    sanity_check(options)
+    generate_files(options, chdir: false)
+  end
+
+  def generate_files(options, chdir:)
+    print_next_color 'Generating terraform files ' \
+                     'for environment: '
+    puts_next_color env(options)
+
+    clean_output_dir(options)
+    # find all .*.erb files, run them through erb and output the result
+    process_copy_erb_files(options)
+    # find all .* files (that don't end in erb) and copy them straight through
+    copy_other_files(options)
+
+    set_working_dir(options) if chdir
+  end
+
+  def copy_other_files(options)
+    Dir.glob('*')
+      .select { |f| !File.directory?(f) }
+      .select { |f| !(f =~ /\.erb$/i) }
+      .each { |f| FileUtils.cp(File.basename(f), output_dir(options)) }
+  end
+
+  def erb_file_to_out_file(f, options)
+    "#{output_dir(options)}/#{f.gsub(/\.erb$/i, '')}"
+  end
+
+  def process_copy_erb_files(options)
+    Dir.glob('*.erb').each do |f|
+      header = "# This file was generated by nexoform. Changes will be lost\n"
+      content = ERB.new(File.read(f), 0, "%<>").result(binding)
+      File.write(erb_file_to_out_file(f, options), "#{header}#{content}")
+    end
+  end
+
+  def clean_output_dir(options)
+    od = output_dir(options)
+    if Dir.exist?(od)
+      FileUtils.remove_dir(od)
+    end
+    FileUtils.mkdir_p(od)
+  end
+
+  def output_dir(options)
+    "#{Dir.pwd}/#{env(options)}"
+  end
+
+  def has_erb_files?
+    Dir.glob('*.erb').count > 0
+  end
+
+  def set_working_dir(optioons)
+    Dir.chdir(output_dir(options)) if has_erb_files?
   end
 end
 

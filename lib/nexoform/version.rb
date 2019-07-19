@@ -2,10 +2,10 @@
 
 module Nexoform
   def self.version
-    '0.0.4'
+    '0.1.0'
   end
 
   def self.date
-    '2018-11-09'
+    '2019-07-18'
   end
 end
