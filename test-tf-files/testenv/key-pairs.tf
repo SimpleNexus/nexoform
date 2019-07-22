@@ -1,0 +1,4 @@
+resource "aws_key_pair" "master" {
+  key_name = "master-ssh-key"
+  public_key = "ssh-rsa AY2UwZDI1YmEtMjkyMS00NDIyLTg3NzAtOGFlODNlNjRjYzkwYTVjZmU5MDItNWM3MC00NGJkLTgwkRbbA9zmj16Q+fN3Z4VHS/kvLYD3UZwF3j4eYA4Ptag/ZEwuWzNbDOiJp6V5llhbnVj+tFWdr1zlwuyznl23yagIj9hEkBXzo55mwGB3TmaBhn4V1dapFheqO7XeOycjQw+AFtexkuaIbLJEVvssHzRPm3kbRkG9zsdSouydVHzia9rtJjUWKMEWkjJmDQtX7NypDeBZom0AzwJI5HhX user@ohai"
+}
