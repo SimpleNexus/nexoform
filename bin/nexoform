@@ -334,6 +334,8 @@ class NexoformBin < Thor
   def exec_output(options)
     sanity_check(options)
     generate_files(options, chdir: true) if has_erb_files?
+    run_init(options)
+    run_refresh(options)
     execute('terraform output')
   end
 
