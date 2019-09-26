@@ -350,7 +350,8 @@ class NexoformBin < Thor
   def terraform_apply(options)
     varfile = apply_with_plan_file?(options) ? '' : var_file_arg(options)
     planfile = apply_with_plan_file?(options) ? options[:plan] : ''
-    "terraform apply #{varfile} #{planfile}"
+    yes = options[:assume_yes] ? "yes 'yes' | " : ''
+    "#{yes}terraform apply #{varfile} #{planfile}"
   end
 
   def exec_output(options)
