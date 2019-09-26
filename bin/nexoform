@@ -148,6 +148,27 @@ class NexoformBin < Thor
     exec_generate(options)
   end
 
+  desc 'init', 'Generate the raw terraform files for the environment and run terraform init on them'
+  long_desc <<-LONGDESC
+    Generates the raw terraform files for the specified (or default) environment
+    and runs terraform init on them.
+
+    > $ nexoform init -e [environment]
+  LONGDESC
+  def init
+    exec_init(options)
+  end
+
+  desc 'clean', 'Cleans up generated terraform files for the environment'
+  long_desc <<-LONGDESC
+    Cleans up generated terraform files for the specified (or default) environment
+
+    > $ nexoform clean -e [environment]
+  LONGDESC
+  def clean
+    exec_clean(options)
+  end
+
   private
 
   def print_next_color(str)
@@ -337,6 +358,17 @@ class NexoformBin < Thor
     run_init(options)
     run_refresh(options)
     execute('terraform output')
+  end
+
+  def exec_init(options)
+    sanity_check(options)
+    generate_files(options, chdir: true) if has_erb_files?
+    run_init(options)
+  end
+
+  def exec_clean(options)
+    sanity_check(options)
+    clean_output_dir(options, mkdir: false)
   end
 
   def exec_apply(options)
@@ -550,12 +582,12 @@ class NexoformBin < Thor
     set_working_dir(options) if chdir
   end
 
-  def clean_output_dir(options)
+  def clean_output_dir(options, mkdir: true)
     od = output_dir(options)
     if Dir.exist?(od)
       FileUtils.remove_dir(od)
     end
-    FileUtils.mkdir_p(od)
+    FileUtils.mkdir_p(od) if mkdir
   end
 
   def output_dir(options)
