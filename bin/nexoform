@@ -351,7 +351,8 @@ class NexoformBin < Thor
     varfile = apply_with_plan_file?(options) ? '' : var_file_arg(options)
     planfile = apply_with_plan_file?(options) ? options[:plan] : ''
     yes = options[:assume_yes] ? "yes 'yes' | " : ''
-    puts "[DEBUG]: yes value: '#{yes}'" if options['debug']
+    puts "[DEBUG]: terraform_apply - yes value: '#{yes}'" if options['debug']
+    puts "[DEBUG]: terraform_apply - planfile value: '#{planfile}'" if options['debug']
     "#{yes}terraform apply #{varfile} #{planfile}"
   end
 
