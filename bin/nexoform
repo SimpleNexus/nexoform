@@ -349,6 +349,11 @@ class NexoformBin < Thor
 
   def terraform_apply(options)
     varfile = apply_with_plan_file?(options) ? '' : var_file_arg(options)
+
+    puts "[DEBUG]: terraform_apply - options: '#{options}'" if options['debug']
+    puts "[DEBUG]: terraform_apply - apply_with_plan_file?: '#{apply_with_plan_file?(options)}'" if options['debug']
+    puts "[DEBUG]: terraform_apply - options[:plan]: '#{options[:plan]}'" if options['debug']
+
     planfile = apply_with_plan_file?(options) ? options[:plan] : ''
     yes = options[:assume_yes] ? "yes 'yes' | " : ''
     puts "[DEBUG]: terraform_apply - yes value: '#{yes}'" if options['debug']
@@ -357,6 +362,7 @@ class NexoformBin < Thor
   end
 
   def exec_output(options)
+    puts "[DEBUG]: exec_output - options: '#{options}'" if options['debug']
     sanity_check(options)
     generate_files(options, chdir: true) if has_erb_files?
     run_init(options)
@@ -365,17 +371,20 @@ class NexoformBin < Thor
   end
 
   def exec_init(options)
+    puts "[DEBUG]: exec_init - options: '#{options}'" if options['debug']
     sanity_check(options)
     generate_files(options, chdir: true) if has_erb_files?
     run_init(options)
   end
 
   def exec_clean(options)
+    puts "[DEBUG]: exec_clean - options: '#{options}'" if options['debug']
     sanity_check(options)
     clean_output_dir(options, mkdir: false)
   end
 
   def exec_apply(options)
+    puts "[DEBUG]: exec_apply - options: '#{options}'" if options['debug']
     sanity_check(options)
     generate_files(options, chdir: true) if has_erb_files? && !options[:plan]
     options = prompt_for_plan_file(options)
