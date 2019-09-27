@@ -302,7 +302,15 @@ class NexoformBin < Thor
   end
 
   def prompt_for_plan_file(options)
-    return options if options[:noplan]
+    if options[:noplan]
+      puts_next_color '* Plan file is disabled on command line. Not using a plan file'
+      return options
+    end
+
+    if options[:plan]
+      puts_next_color "* Plan file is specified on the command line. Using specified plan file '#{options[:plan]}'"
+      return options
+    end
 
     if Nexoform::Config.plan_disabled?(env(options))
       puts_next_color '* Plan file is disabled in config file. Not using a plan file'
@@ -400,7 +408,17 @@ class NexoformBin < Thor
   end
 
   def prompt_for_save_file(options)
-    return options if options[:nosave]
+    puts "[DEBUG]: prompt_for_save_file - options: '#{options}'" if options['debug']
+
+    if options[:nosave]
+      puts_next_color "* Plan file saving disabled on command line"
+      return options
+    end
+
+    if options[:out]
+      puts_next_color "* Plan file specified on command line as '#{options[:out]}'.  Using that"
+      return options
+    end
 
     if Nexoform::Config.has_plan_file?(env(options))
       plan_file = Nexoform::Config.plan_file(env(options))
@@ -478,6 +496,7 @@ class NexoformBin < Thor
   end
 
   def exec_plan(options)
+    puts "[DEBUG]: exec_plan - options: '#{options}'" if options['debug']
     sanity_check(options)
     generate_files(options, chdir: true) if has_erb_files?
     options = prompt_for_save_file(options)
