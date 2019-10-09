@@ -43,9 +43,9 @@ module Nexoform
                 file: dev.tfplan  # file the plan is saved to automatically
                 overwrite: yes    # overwrite existing file. could be: yes | no | ask
               state:              # configuration for state management s3 backend
+                region: us-east-1 # Region where the BUCKET specified here lives, not the region you are provisioning to
                 bucket: #{project_name}-terraform-state
                 key: dev.tfstate
-                region: us-east-1
             staging:                  # name of environment
               varFile: staging.tfvars # terraform var-file to use
               plan:                   # optional block. Avoids getting prompted
@@ -53,9 +53,9 @@ module Nexoform
                 file: staging.tfplan  # file the plan is saved to automatically
                 overwrite: yes        # overwrite existing file. could be: yes | no | ask
               state:                  # configuration for state management s3 backend
+                region: us-east-1     # Region where the BUCKET specified here lives, not the region you are provisioning to
                 bucket: #{project_name}-terraform-state
                 key: staging.tfstate
-                region: us-east-1
             prod:                  # name of environment
               varFile: prod.tfvars # terraform var-file to use
               plan:                # optional block. Avoids getting prompted
@@ -63,9 +63,9 @@ module Nexoform
                 file: prod.tfplan  # file the plan is saved to automatically
                 overwrite: yes     # overwrite existing file. could be: yes | no | ask
               state:               # configuration for state management s3 backend
+                region: us-east-1  # Region where the BUCKET specified here lives, not the region you are provisioning to
                 bucket: #{project_name}-terraform-state
                 key: prod.tfstate
-                region: us-east-1
       ).split("\n").map { |s| s.sub(' ' * 8, '') }.join("\n")
     end
 
