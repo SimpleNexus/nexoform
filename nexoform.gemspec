@@ -29,7 +29,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'thor', '~> 0.20.0'
 
   s.add_development_dependency 'byebug', '~> 10.0'
-  s.add_development_dependency 'rake', '~> 12.3'
+  s.add_development_dependency 'rake', '~> 13.0'
   s.add_development_dependency 'rspec', '~> 3.8'
   s.add_development_dependency 'rubocop', '~> 0.59'
 end
