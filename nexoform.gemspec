@@ -24,7 +24,7 @@ Gem::Specification.new do |s|
 
   s.executables << 'nexoform'
 
-  s.add_runtime_dependency 'activesupport', '~> 5.2'
+  s.add_runtime_dependency 'activesupport', '>= 5.2', '< 8.0'
   s.add_runtime_dependency 'rainbow', '~> 3.0'
   s.add_runtime_dependency 'thor', '~> 0.20.0'
 
